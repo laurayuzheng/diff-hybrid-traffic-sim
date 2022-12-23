@@ -31,7 +31,7 @@ class RoadNetwork:
 
         self.lane[id] = lane
 
-    def forward(self, delta_time: float):
+    def forward(self, delta_time: float, actions=None):
 
         # set connectivity between lanes in the network;
 
@@ -48,9 +48,12 @@ class RoadNetwork:
         # take one step for each lane;
         # in this step, updated states are not stored in current states;
         
-        for lane in self.lane.values():
+        for li, lane in enumerate(self.lane.values()):
 
-            lane.forward(delta_time)
+            if actions is not None:
+                lane.forward(delta_time, actions[li])
+            else: 
+                lane.forward(delta_time, None)
 
         # apply new states to current states of each lane;
 

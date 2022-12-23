@@ -31,6 +31,10 @@ class MicroLane(BaseLane):
         
         self.curr_vehicle: List[MicroVehicle] = []
 
+        # Indices of autonomous agents in self.curr_vehicle
+
+        self.autonomous_ind: List[int] = [] 
+
         # position and speed that would be used to update vehicle states;
 
         self.acc_info = []
@@ -53,19 +57,28 @@ class MicroLane(BaseLane):
     def is_micro(self):
         return True
 
-    def add_head_vehicle(self, vehicle: MicroVehicle):
+    def add_head_vehicle(self, vehicle: MicroVehicle, autonomous=False):
 
         self.curr_vehicle.append(vehicle)
 
-    def add_tail_vehicle(self, vehicle: MicroVehicle):
+        if autonomous: 
+            self.autonomous_ind.append(len(self.curr_vehicle) - 1)
+
+    def add_tail_vehicle(self, vehicle: MicroVehicle, autonomous=False):
 
         self.curr_vehicle.insert(0, vehicle)
+        
+        # indices all shift by 1
+        self.autonomous_ind = [i+1 for i in self.autonomous_ind]
+
+        if autonomous: 
+            self.autonomous_ind.append(0)
 
     def num_vehicle(self):
 
         return len(self.curr_vehicle)
             
-    def forward(self, delta_time: float):
+    def forward(self, delta_time: float, actions=None):
 
         '''
         Take a single forward simulation step by computing vehicle state values of next time step.
@@ -87,15 +100,18 @@ class MicroLane(BaseLane):
 
             assert position_delta >= 0, "Vehicle collision detected"
 
-            acc_info = IDM.compute_acceleration(mv.accel_max,
-                                                    mv.accel_pref,
-                                                    mv.speed,
-                                                    mv.target_speed,
-                                                    position_delta,
-                                                    speed_delta,
-                                                    mv.min_space,
-                                                    mv.time_pref,
-                                                    delta_time)
+            if vi in self.autonomous_ind and actions: 
+                acc_info = (actions.pop(), -1, -1, -1)
+            else:
+                acc_info = IDM.compute_acceleration(mv.accel_max,
+                                                        mv.accel_pref,
+                                                        mv.speed,
+                                                        mv.target_speed,
+                                                        position_delta,
+                                                        speed_delta,
+                                                        mv.min_space,
+                                                        mv.time_pref,
+                                                        delta_time)
 
             self.acc_info.append(acc_info)
 

@@ -60,7 +60,7 @@ class dMicroLane(MicroLane):
         self.d_lane: List[dMicroLane.dLane] = []
         self.b_curr_vehicle: List[MicroVehicle] = []
 
-    def forward(self, delta_time: float):
+    def forward(self, delta_time: float, actions=None):
 
 
         '''
@@ -72,17 +72,17 @@ class dMicroLane(MicroLane):
 
         cp, cs = self.vectorize_input()
 
-        np, ns = dMicroForwardLayer.apply(self, cp, cs, delta_time)
+        np, ns = dMicroForwardLayer.apply(self, cp, cs, delta_time, actions)
 
         self.set_next_state_vector(np, ns)
 
-    def _forward(self, delta_time: float):
+    def _forward(self, delta_time: float, actions=None):
         
         '''
         Take forward step by calling [MacroLane]'s forward function.
         '''
 
-        super().forward(delta_time)
+        super().forward(delta_time, actions)
 
     def _backward(self, delta_time: float):
 
@@ -221,7 +221,7 @@ class dMicroLane(MicroLane):
 class dMicroForwardLayer(th.autograd.Function):
 
     @staticmethod
-    def forward(ctx, lane: dMicroLane, p: th.Tensor, s: th.Tensor, delta_time: float):
+    def forward(ctx, lane: dMicroLane, p: th.Tensor, s: th.Tensor, delta_time: float, actions: th.Tensor = None):
         
         '''
         Note that tensor inputs are just placeholders; we assume they are
@@ -239,7 +239,7 @@ class dMicroForwardLayer(th.autograd.Function):
         
         # take forward step;
         
-        lane._forward(delta_time)
+        lane._forward(delta_time, actions)
 
         # compute gradient info for differentiation;
 
@@ -254,6 +254,9 @@ class dMicroForwardLayer(th.autograd.Function):
         # set context;
 
         ctx.dqs = lane.d_lane[-1].dqs
+        ctx.grad_a = th.Tensor([delta_time if i in lane.autonomous_ind else 0 \
+                                for i in range(lane.num_vehicle())]) \
+                                if actions else None
 
         # return state vector r and y, and fluxes at boundary;
 
@@ -287,5 +290,6 @@ class dMicroForwardLayer(th.autograd.Function):
         
         grad_p = th.tensor(grad_p)
         grad_s = th.tensor(grad_s)
+        grad_a = ctx.grad_a
 
-        return None, grad_p, grad_s, None
+        return None, grad_p, grad_s, None, grad_a
