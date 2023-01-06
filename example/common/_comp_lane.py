@@ -77,19 +77,19 @@ class CompLane:
 
             for v in self.sim_lane.curr_vehicle:
 
-                position = v.position
+                v_position = v.position
 
-                if isinstance(position, th.Tensor):
+                if isinstance(v_position, th.Tensor):
 
-                    position = position.item()
+                    v_position = v_position.item()
 
                 if self.reverse:
 
-                    position = self.sim_lane.length - position
+                    v_position = self.sim_lane.length - v_position
 
-                position = self.env_lane.position(position, 0)
-
-                heading = self.env_lane.heading_at(position)
+                # Changed args position -> position[0]
+                position = self.env_lane.position(v_position, 0)
+                heading = self.env_lane.heading_at(v_position)
 
                 rv = Vehicle(self.env_road, position, heading, v.speed)
 
