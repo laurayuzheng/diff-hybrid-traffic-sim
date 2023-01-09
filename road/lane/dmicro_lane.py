@@ -107,7 +107,7 @@ class dMicroLane(MicroLane):
                                                         mv.min_space,
                                                         mv.time_pref,
                                                         curr_acc_info[1],
-                                                        delta_time, 
+                                                        delta_time,
                                                         curr_acc_info[2],
                                                         curr_acc_info[3])
 

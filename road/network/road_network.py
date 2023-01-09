@@ -184,6 +184,17 @@ class RoadNetwork:
         prev_lane.add_next_lane(next_lane)
         next_lane.add_prev_lane(prev_lane)
 
+    def connect_lateral_lane(self, lane1_id: int, lane2_id: int):
+        '''
+        Connect two lateral lanes of given id (for lane changes)
+        '''
+
+        lane1 = self.lane[lane1_id]
+        lane2 = self.lane[lane2_id]
+
+        lane1.add_adjacent_lane(lane2)
+        lane2.add_adjacent_lane(lane1)
+
     def setup_boundary(self, id: int, differentiable: bool):
 
         '''

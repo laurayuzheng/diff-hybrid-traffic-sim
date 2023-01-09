@@ -14,6 +14,7 @@ class BaseLane:
 
         self.next_lane: Dict[int, BaseLane] = {}
         self.prev_lane: Dict[int, BaseLane] = {}
+        self.adjacent_lane: Dict[int, BaseLane] = {}
 
         # properties;
         
@@ -37,6 +38,9 @@ class BaseLane:
 
     def add_next_lane(self, lane):
         self.next_lane[lane.id] = lane
+
+    def add_adjacent_lane(self, lane):
+        self.adjacent_lane[lane.id] = lane
 
     def has_prev_lane(self):
         return self.num_prev_lane() > 0

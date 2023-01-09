@@ -16,3 +16,11 @@ class Vehicle:
         self.speed = speed
         self.length = length
         self.a = a
+
+    def __eq__(self, other):
+        return self.id == other.id and \
+                self.position == other.position and \
+                self.speed == other.speed and \
+                self.length == other.length and \
+                self.a == other.a
+                
