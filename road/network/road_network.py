@@ -97,7 +97,14 @@ class RoadNetwork:
         # in this step, updated states are not stored in current states;
         
         for lane in self.lane.values():
+            # lane change here
+            v_list = lane.lane_change_policy(delta_time)
 
+            for v in v_list: # update routes for lane changed vehs
+                self.micro_route[v.id] = self.create_random_route(lane.id)
+
+        for lane in self.lane.values():
+            # forward step here
             lane.forward(delta_time)
 
         # apply new states to current states of each lane;

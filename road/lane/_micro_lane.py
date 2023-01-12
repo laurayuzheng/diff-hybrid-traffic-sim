@@ -66,7 +66,7 @@ class MicroLane(BaseLane):
 
         self.curr_vehicle.insert(0, vehicle)
 
-    def add_vehicle(self, vehicle: MicroVehicle) -> int:
+    def add_vehicle(self, vehicle: MicroVehicle):
 
         # find proper index to insert;
 
@@ -76,7 +76,7 @@ class MicroLane(BaseLane):
 
             self.add_head_vehicle(vehicle)
 
-            return len(self.curr_vehicle) - 1
+            return
 
         for i, v in enumerate(self.curr_vehicle):
 
@@ -88,8 +88,7 @@ class MicroLane(BaseLane):
 
                 self.add_tail_vehicle(vehicle)
                 
-                return 0
-                # break
+                break
 
             else:
 
@@ -103,8 +102,6 @@ class MicroLane(BaseLane):
 
                     self.add_head_vehicle(vehicle)
 
-                    return len(self.curr_vehicle) - 1 
-
                 else:
 
                     nv = v
@@ -117,13 +114,11 @@ class MicroLane(BaseLane):
 
                         self.curr_vehicle.insert(i + 1, vehicle)
 
-                        return i+1
-
                     else:
 
                         continue
 
-                # break
+                break
 
     def remove_vehicle(self, vehicle: MicroVehicle) -> int:
         try:
@@ -131,6 +126,11 @@ class MicroLane(BaseLane):
             return 0
         except ValueError: 
             return 1
+
+    def remove_vehicle(self, vi: int) -> int: 
+        ''' Polymorphism of above. Parameter is index in curr_vehicle.
+        '''
+        self.curr_vehicle.pop(vi)
 
     def num_vehicle(self):
 
@@ -147,51 +147,6 @@ class MicroLane(BaseLane):
         assert self.num_vehicle(), ""
 
         return self.curr_vehicle[0]
-
-    def get_candidate_new_lanes(self):
-
-        # Dictionary of candidate adjacent lanes by vehicle idx and new lane objects
-        candidate_adj_lanes : Dict[int, LaneChangeCandidate] = {}
-
-        for vi, veh in enumerate(self.curr_vehicle):
-            
-            # if np.random.random(1).item() > 0.1: 
-            #     continue
-
-            candidate_lanes = []
-            vi_candidates = []
-            original_lanes = []
-
-            for lane_id, lane in self.adjacent_lane.items():
-
-                if lane.is_macro():
-                    continue
-                
-                # Re-scale vehicle position relative to adjacent lane
-                adj_veh_position = veh.position / self.length * lane.length
-                
-                # Make a deep copy of vehicle to add to candidate lane
-                veh_cpy = MicroVehicle(veh.id, 
-                                        adj_veh_position, 
-                                        veh.speed, 
-                                        veh.accel_max, 
-                                        veh.accel_pref, 
-                                        veh.target_speed, 
-                                        veh.min_space, 
-                                        veh.time_pref, 
-                                        veh.length, 
-                                        veh.a)
-
-                candidate_lane = copy.deepcopy(lane)
-                ind_in_cand_lane = candidate_lane.add_vehicle(veh_cpy) 
-                candidate_lanes.append(candidate_lane)
-                vi_candidates.append(ind_in_cand_lane)
-                original_lanes.append(lane)
-            
-            candidate_obj = LaneChangeCandidate(vi, vi_candidates, candidate_lanes, original_lanes)
-            candidate_adj_lanes[vi] = candidate_obj
-
-        return candidate_adj_lanes
 
     def get_front_back_vehicles(self, vehicle: MicroVehicle, same_lane=False) -> Union[MicroVehicle, MicroVehicle]:
         ''' Get MicroVehicle in front of and behind a query MicroVehicle. 
@@ -332,15 +287,15 @@ class MicroLane(BaseLane):
         
         for li, lane in self.adjacent_lane.items():
             for vi, mv in enumerate(self.curr_vehicle):
-                valid_target_lanes[vi] = [self] # staying in lane is valid option
+                valid_target_lanes[vi] = [] # [self]
 
-                # try:
-                cpy_mv_normalized = copy.deepcopy(mv)
-                cpy_mv_normalized.position = mv.position / self.length * lane.length
-                _, backv = lane.get_front_back_vehicles(cpy_mv_normalized, same_lane=False)
-                frontoldv, backoldv = self.get_front_back_vehicles(mv, same_lane=True)
-                # except: 
-                #     continue 
+                try:
+                    cpy_mv_normalized = copy.deepcopy(mv)
+                    cpy_mv_normalized.position = mv.position / self.length * lane.length
+                    _, backv = lane.get_front_back_vehicles(cpy_mv_normalized, same_lane=False)
+                    frontoldv, backoldv = self.get_front_back_vehicles(mv, same_lane=True)
+                except: 
+                    continue 
                 
                 new_following_a, _ = lane.get_accels_ministate(backv, delta_time, same_lane=True)
                 self_pred_a, new_following_pred_a = lane.get_accels_ministate(cpy_mv_normalized, delta_time, same_lane=False)
@@ -377,68 +332,6 @@ class MicroLane(BaseLane):
                 valid_target_lanes[vi].append(lane)
         
         return valid_target_lanes
-        
-    # def mobil(self, delta_time: float):
-    #     '''
-    #     Determine whether a lane change should occur based on the MOBIL lane change model. 
-    #     References adjacent lanes to check for lane change criteria. 
-    #     '''
-
-    #     # valid target lanes (key: Vehicle ID) to change to for each vehicle
-    #     valid_target_lanes : Dict[int, List[MicroLane]] = {} 
-    #     candidate_lanes : Dict[int, LaneChangeCandidate] = self.get_candidate_new_lanes()
-
-    #     # return candidate_lanes
-
-    #     for vi, candidates in candidate_lanes.items():
-    #         mv = self.curr_vehicle[vi]
-    #         valid_target_lanes[vi] = [self] # staying in lane is valid option
-
-    #         for i in range(candidates.num_candidates):
-
-    #             original_lane = candidates.original_lanes[i]
-    #             candidate_lane = candidates.candidate_lanes[i]
-    #             candidate_idx = candidates.vi_candidate[i]
-
-    #             # If last vehicle, make sure next lane has enough space 
-    #             if candidate_idx == 0 and \
-    #                 candidate_lane.curr_vehicle[0].position < \
-    #                      (candidate_lane.curr_vehicle[0].length / 2):
-    #                 continue
-                
-    #             # If first vehicle, make sure next lane has enough space in front
-    #             if candidate_idx == len(candidate_lane.curr_vehicle) - 1 and \
-    #                 (candidate_lane.curr_vehicle[0].position + (candidate_lane.curr_vehicle[0].length / 2)) > \
-    #                      candidate_lane.length:
-    #                 continue
-
-    #             # candidate_acc = self.get_lane_accel(candidate_lane, candidate_idx, mv, delta_time)
-
-    #             # Is the maneuver unsafe for the new following vehicle? 
-    #             new_following_a = self.get_lane_accel(original_lane, candidate_idx-1, mv, delta_time) if candidate_idx > 0 else 0 
-    #             new_following_pred_a = self.get_lane_accel(candidate_lane, candidate_idx-1, mv, delta_time) if candidate_idx > 0 else 0 
-
-    #             if new_following_pred_a < -self.LANE_CHANGE_MAX_BRAKING_IMPOSED:
-    #                 continue
-
-    #             # Do I have a planned route for a specific lane which is safe for me to access?
-    #             self_pred_a = self.get_lane_accel(candidate_lane, candidate_idx, mv, delta_time)
-    #             if self_pred_a < -self.LANE_CHANGE_MAX_BRAKING_IMPOSED:
-    #                 continue
-
-    #             self_a = self.get_lane_accel(self, vi, mv, delta_time)
-    #             old_following_a = self.get_lane_accel(self, vi-1, mv, delta_time) if vi > 0 else 0.
-    #             pred_self = copy.deepcopy(self)
-    #             pred_self.remove_vehicle(mv)
-    #             old_following_pred_a = self.get_lane_accel(pred_self, vi-1, mv, delta_time) if vi > 0 else 0.
-    #             jerk = self_pred_a - self_a + self.POLITENESS * (new_following_pred_a - new_following_a
-    #                                                             + old_following_pred_a - old_following_a)
-    #             if jerk < self.LANE_CHANGE_MIN_ACC_GAIN:
-    #                 continue
-
-    #             valid_target_lanes[vi].append(candidate_lane)
-
-    #     return valid_target_lanes
 
     def get_lane_accel(self, lane : BaseLane, vi : int, mv : MicroVehicle, delta_time : float):
         # compute next position and speed using Eulerian method;
@@ -532,8 +425,36 @@ class MicroLane(BaseLane):
             self.next_vehicle_position.append(next_position)
             self.next_vehicle_speed.append(next_speed)
 
-        print(self.mobil(delta_time))
-        # gc.collect()
+        print(len(self.curr_vehicle), len(self.next_vehicle_position))
+
+    def lane_change_policy(self, delta_time) -> List[MicroVehicle] : 
+        
+        valid_lanes = self.mobil(delta_time)
+        num_removed = 0
+        vehicles_changed = []
+
+        for vi, lanes in valid_lanes.items():
+            
+            if lanes:
+                vi = vi - num_removed 
+                target_lane = lanes[0]
+
+                veh = self.curr_vehicle[vi]
+                old_pos = veh.position 
+                veh.position = veh.position / self.length * target_lane.length
+
+                try:
+                    target_lane.add_vehicle(veh)
+                except: 
+                    veh.position = old_pos
+                    continue 
+
+                self.remove_vehicle(vi)
+                num_removed += 1
+                vehicles_changed.append(veh)
+
+        return vehicles_changed
+
 
     def handle_collision(self, position_delta: float):
 
