@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 
@@ -19,6 +19,7 @@ class RoadNetwork:
     def __init__(self, speed_limit: float):
 
         self.lane: Dict[int, BaseLane] = {}
+        self.enable_lane_change = False
 
         # for now, we only support uniform speed limit across entire network;
 
@@ -36,6 +37,11 @@ class RoadNetwork:
 
         self.vehicle: Dict[int, MicroVehicle] = {}
         self.micro_route: Dict[int, MicroRoute] = {}
+
+        # ad vehicles;
+
+        self.autonomy_ratio = 0
+        self.ad_vehicle: List[int] = [] 
 
         # num;
 
@@ -55,12 +61,16 @@ class RoadNetwork:
 
         return lane.id
 
-    def add_vehicle(self, nv: MicroVehicle, route: MicroRoute):
+    def add_vehicle(self, nv: MicroVehicle, route: MicroRoute, autonomous: bool=False):
 
         assert nv.length == self.vehicle_length, ""
 
         nv.id = self.num_vehicle
         self.num_vehicle += 1
+
+        if autonomous: 
+            nv.autonomous = True 
+            self.ad_vehicle.append(nv.id)
 
         self.vehicle[nv.id] = nv
         self.micro_route[nv.id] = route
@@ -76,7 +86,84 @@ class RoadNetwork:
 
         return nv.id
 
-    def forward(self, delta_time: float, differentiable: bool):
+    def update_ad_vehicle(self):
+        
+        ad_vehicle_copy = self.ad_vehicle.copy() 
+
+        # find out which ids are not in simulation
+        for lane in self.lane.values():
+            for v in lane.curr_vehicle:
+                if v.id in ad_vehicle_copy:
+                    ad_vehicle_copy.remove(v.id)
+        
+        # if nonexisting vehicles remain, remove them
+        if len(ad_vehicle_copy) > 0: 
+            for id in ad_vehicle_copy: 
+                self.ad_vehicle.remove(id)
+                print("removing id")
+
+
+    def update_autonomous_lane_info(self, ad_action, delta_time : float) -> None:
+        ''' Update autonomous vehicle actions by modifying 
+            cached next position and speed in each lane 
+            based on acceleration provided by ad_action.
+        '''
+
+        if len(self.ad_vehicle) == 0: 
+            return
+
+        # cache for slight vehicle search optimization
+        ad_lane_cache : Dict[int, MicroLane] = {} 
+        ad_action = ad_action[-len(self.ad_vehicle):]
+
+        for i, accel in enumerate(ad_action): 
+
+            corresponding_vid = self.ad_vehicle[i]
+            found = False
+
+            # first check if the vehicle id is in the cache to skip iterating through all lanes 
+            if corresponding_vid in ad_lane_cache: 
+                found = True
+                lane = ad_lane_cache[corresponding_vid]
+
+                for j,v in enumerate(lane.curr_vehicle):
+                        
+                    if v.autonomous: 
+                        ad_lane_cache[v.id] = lane 
+                    
+                    if v.id == corresponding_vid: 
+                        next_position = v.position + delta_time * v.speed
+                        next_speed = v.speed + delta_time * accel
+                        lane.next_vehicle_position[j] = next_position
+                        lane.next_vehicle_speed[j] = next_speed
+
+            
+            else: # check all lanes for vehicle id
+                
+                for lane in self.lane.values():
+                    
+                    assert lane.is_micro(), "lane must be micro to update autonomous vehicles"
+                    
+                    for j,v in enumerate(lane.curr_vehicle):
+                        
+                        if v.autonomous: 
+                            ad_lane_cache[v.id] = lane 
+                        
+                        if v.id == corresponding_vid: 
+                            next_position = v.position + delta_time * v.speed
+                            next_speed = v.speed + delta_time * accel
+                            lane.next_vehicle_position[j] = next_position
+                            lane.next_vehicle_speed[j] = next_speed
+                            found = True 
+                        
+                        if found:
+                            break
+                
+                    if found:
+                        break 
+
+
+    def forward(self, ad_action, delta_time: float, differentiable: bool):
 
         '''
         Take a single forward step of this simulation.
@@ -96,16 +183,19 @@ class RoadNetwork:
         # take one step for each lane;
         # in this step, updated states are not stored in current states;
         
-        for lane in self.lane.values():
-            # lane change here
-            v_list = lane.lane_change_policy(delta_time)
+        if self.enable_lane_change:
+            for lane in self.lane.values():
+                # lane change here
+                v_list = lane.lane_change_policy(delta_time)
 
-            for v in v_list: # update routes for lane changed vehs
-                self.micro_route[v.id] = self.create_random_route(lane.id)
+                for v in v_list: # update routes for lane changed vehs
+                    self.micro_route[v.id] = self.create_random_route(lane.id)
 
         for lane in self.lane.values():
             # forward step here
             lane.forward(delta_time)
+
+        self.update_autonomous_lane_info(ad_action, delta_time)
 
         # apply new states to current states of each lane;
 
@@ -116,6 +206,8 @@ class RoadNetwork:
         # deal with hybrid cases;
 
         self.conversion(delta_time)
+
+        self.update_ad_vehicle() 
 
     def conversion(self, delta_time: float):
 

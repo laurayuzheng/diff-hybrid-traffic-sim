@@ -286,6 +286,7 @@ class MicroLane(BaseLane):
         valid_target_lanes : Dict[int, List[MicroLane]] = {} 
         
         for li, lane in self.adjacent_lane.items():
+
             for vi, mv in enumerate(self.curr_vehicle):
                 valid_target_lanes[vi] = [] # [self]
 
@@ -310,7 +311,7 @@ class MicroLane(BaseLane):
                                                     frontoldv.speed - backoldv.speed,
                                                     backoldv.min_space,
                                                     backoldv.time_pref,
-                                                    delta_time)
+                                                    delta_time)[0]
                 else: 
                     old_following_pred_a = 0
 
@@ -323,7 +324,7 @@ class MicroLane(BaseLane):
                 # Do I have a planned route for a specific lane which is safe for me to access?
                 if self_pred_a < -self.LANE_CHANGE_MAX_BRAKING_IMPOSED:
                     continue
-
+                
                 jerk = self_pred_a - self_a + self.POLITENESS * (new_following_pred_a - new_following_a
                                                                 + old_following_pred_a - old_following_a)
                 if jerk < self.LANE_CHANGE_MIN_ACC_GAIN:
@@ -425,7 +426,7 @@ class MicroLane(BaseLane):
             self.next_vehicle_position.append(next_position)
             self.next_vehicle_speed.append(next_speed)
 
-        print(len(self.curr_vehicle), len(self.next_vehicle_position))
+        # print(len(self.curr_vehicle), len(self.next_vehicle_position))
 
     def lane_change_policy(self, delta_time) -> List[MicroVehicle] : 
         
@@ -435,7 +436,7 @@ class MicroLane(BaseLane):
 
         for vi, lanes in valid_lanes.items():
             
-            if lanes:
+            if lanes and np.random.random((1)).item() < 0.005:
                 vi = vi - num_removed 
                 target_lane = lanes[0]
 

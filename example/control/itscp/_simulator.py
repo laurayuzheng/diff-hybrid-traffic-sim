@@ -163,7 +163,7 @@ class ItscpRoadNetwork(RoadNetwork):
                     nv = waiting_vehicle_list[-1]
                     nr = waiting_route_list[-1]
 
-                    self.add_vehicle(nv, nr)
+                    self.add_vehicle(nv, nr, autonomous=np.random.random((1)).item() < self.autonomy_ratio)
 
                     self.lane_waiting_micro_vehicle[id] = waiting_vehicle_list[:-1]
                     self.lane_waiting_micro_route[id] = waiting_route_list[:-1]

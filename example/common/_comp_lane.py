@@ -7,6 +7,7 @@ import pygame
 
 from highway_env.road.graphics import WorldSurface
 from highway_env.vehicle.kinematics import Vehicle
+from highway_env.vehicle.graphics import VehicleGraphics
 from highway_env.road.lane import AbstractLane
 from highway_env.road.road import Road, RoadNetwork
 
@@ -92,6 +93,7 @@ class CompLane:
                 heading = self.env_lane.heading_at(v_position)
 
                 rv = Vehicle(self.env_road, position, heading, v.speed)
+                rv.color = VehicleGraphics.RED if v.autonomous else VehicleGraphics.BLACK
 
                 rv.check_collisions = False
                 rv.collidable = False

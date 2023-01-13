@@ -82,4 +82,12 @@ default_config = {
 
     "random_seed": 0,
 
+    # enable lane changes
+
+    "enable_lane_change": True,
+
+    # autonomous ratio (default is 0 or none at all)
+
+    "autonomy_ratio": 0
+
 }

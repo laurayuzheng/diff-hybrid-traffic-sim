@@ -16,6 +16,7 @@ class Vehicle:
         self.speed = speed
         self.length = length
         self.a = a
+        self.autonomous = False
 
     def __eq__(self, other):
         return self.id == other.id and \
