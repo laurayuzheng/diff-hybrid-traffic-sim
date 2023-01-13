@@ -95,7 +95,7 @@ class RoadNetwork:
             for v in lane.curr_vehicle:
                 if v.id in ad_vehicle_copy:
                     ad_vehicle_copy.remove(v.id)
-        
+
         # if nonexisting vehicles remain, remove them
         if len(ad_vehicle_copy) > 0: 
             for id in ad_vehicle_copy: 
@@ -114,7 +114,7 @@ class RoadNetwork:
 
         # cache for slight vehicle search optimization
         ad_lane_cache : Dict[int, MicroLane] = {} 
-        ad_action = ad_action[-len(self.ad_vehicle):]
+        # ad_action = ad_action[-len(self.ad_vehicle):]
 
         for i, accel in enumerate(ad_action): 
 
