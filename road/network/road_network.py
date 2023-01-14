@@ -97,10 +97,9 @@ class RoadNetwork:
                     ad_vehicle_copy.remove(v.id)
 
         # if nonexisting vehicles remain, remove them
-        if len(ad_vehicle_copy) > 0: 
-            for id in ad_vehicle_copy: 
-                self.ad_vehicle.remove(id)
-                print("removing id")
+        for id in ad_vehicle_copy: 
+            self.ad_vehicle.remove(id)
+            print("removing id")
 
 
     def update_autonomous_lane_info(self, ad_action, delta_time : float) -> None:
@@ -117,6 +116,9 @@ class RoadNetwork:
         # ad_action = ad_action[-len(self.ad_vehicle):]
 
         for i, accel in enumerate(ad_action): 
+            
+            print(ad_action)
+            print(self.ad_vehicle)
 
             corresponding_vid = self.ad_vehicle[i]
             found = False
