@@ -93,7 +93,9 @@ class CompLane:
                 heading = self.env_lane.heading_at(v_position)
 
                 rv = Vehicle(self.env_road, position, heading, v.speed)
-                rv.color = VehicleGraphics.RED if v.autonomous else VehicleGraphics.BLACK
+
+                rv.color = VehicleGraphics.RED if v.collided else VehicleGraphics.GREEN if v.autonomous else VehicleGraphics.BLACK
+                rv.length = v.length - 2
 
                 rv.check_collisions = False
                 rv.collidable = False

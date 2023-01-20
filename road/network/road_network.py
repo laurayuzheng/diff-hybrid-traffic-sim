@@ -12,7 +12,7 @@ from road.network.conversion import Conversion
 
 from dmath.operation import sigmoid
 
-MAX_ROUTE_LENGTH = 32
+MAX_ROUTE_LENGTH = 64
 
 class RoadNetwork:
 

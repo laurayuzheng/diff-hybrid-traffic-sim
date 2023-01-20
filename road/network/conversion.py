@@ -152,18 +152,23 @@ class Conversion:
             assert next_lane.is_micro(), ""
 
             if hv.position >= prev_lane.length:
+                
+                # Increment route index first to access next route lane
+                hr.increment_curr_idx()
+
+                # add to next lane;
+
+                hv.position = hv.position - prev_lane.length
+                hv.next_lane = network.lane[hr.next_lane_id()] 
+                
+                next_lane.add_tail_vehicle(hv)
 
                 # remove from current lane;
 
                 prev_lane.curr_vehicle = prev_lane.curr_vehicle[:-1]
 
-                # add to next lane;
 
-                hv.position = hv.position - prev_lane.length
 
-                next_lane.add_tail_vehicle(hv)
-
-                hr.increment_curr_idx()
 
     @staticmethod
     def micro_to_none(network, prev_lane: MicroLane):

@@ -29,7 +29,7 @@ class MicroLane(BaseLane):
     # Lateral policy parameters
     POLITENESS = 0.  # in [0, 1]
     LANE_CHANGE_MIN_ACC_GAIN = 0.2  # [m/s2]
-    LANE_CHANGE_MAX_BRAKING_IMPOSED = 2.0  # [m/s2]
+    LANE_CHANGE_MAX_BRAKING_IMPOSED = 0.0  # [m/s2]
     LANE_CHANGE_DELAY = 1.0  # [s]
 
     def __init__(self, id: int, lane_length: float, speed_limit: float):
@@ -52,6 +52,10 @@ class MicroLane(BaseLane):
         self.head_position_delta = DEFAULT_HEAD_POSITION_DELTA
         self.head_speed_delta = DEFAULT_HEAD_SPEED_DELTA
 
+        # priority value (to be compared with other lanes' priority)
+
+        self.priority = 0
+
     def is_macro(self):
         return False
 
@@ -63,6 +67,10 @@ class MicroLane(BaseLane):
         self.curr_vehicle.append(vehicle)
 
     def add_tail_vehicle(self, vehicle: MicroVehicle):
+
+        # if len(self.curr_vehicle) > 0:
+        #     pv = self.curr_vehicle[0]
+        #     assert vehicle.position - pv.position > (vehicle.length + pv.length) * 0.5, ""
 
         self.curr_vehicle.insert(0, vehicle)
 
@@ -204,7 +212,7 @@ class MicroLane(BaseLane):
 
                         # check if the vehicle collides with leading vehicle;
 
-                        assert nv.position - vehicle.position > (vehicle.length + nv.length) * 0.5, ""
+                        assert abs(nv.position - vehicle.position) > (vehicle.length + nv.length) * 0.5, ""
 
                         if same_lane:
                             return self.curr_vehicle[i+1], self.curr_vehicle[i-1]
@@ -233,6 +241,7 @@ class MicroLane(BaseLane):
         qs = [backv.speed, vm.speed, frontv.speed]
 
         return qp, qs
+
 
     def get_accels_ministate(self, mv : MicroVehicle, delta_time : float, same_lane : bool = False):
         ''' Compute IDM for middle and back vehicles of a 3-vehicle position and velocity state.
@@ -288,10 +297,15 @@ class MicroLane(BaseLane):
         for li, lane in self.adjacent_lane.items():
 
             for vi, mv in enumerate(self.curr_vehicle):
+                
+                # enable lane change for autonomous vehicles only
+                if mv.autonomous == False: 
+                    continue
+
                 valid_target_lanes[vi] = [] # [self]
 
                 try:
-                    cpy_mv_normalized = copy.deepcopy(mv)
+                    cpy_mv_normalized = mv.copy()
                     cpy_mv_normalized.position = mv.position / self.length * lane.length
                     _, backv = lane.get_front_back_vehicles(cpy_mv_normalized, same_lane=False)
                     frontoldv, backoldv = self.get_front_back_vehicles(mv, same_lane=True)
@@ -301,7 +315,8 @@ class MicroLane(BaseLane):
                 new_following_a, _ = lane.get_accels_ministate(backv, delta_time, same_lane=True)
                 self_pred_a, new_following_pred_a = lane.get_accels_ministate(cpy_mv_normalized, delta_time, same_lane=False)
                 self_a, old_following_a = self.get_accels_ministate(mv, delta_time, same_lane=True)
-                
+                del cpy_mv_normalized # free copy of vehicle 
+
                 if backoldv:
                     old_following_pred_a = IDM.compute_acceleration(backoldv.accel_max,
                                                     backoldv.accel_pref,
@@ -334,40 +349,22 @@ class MicroLane(BaseLane):
         
         return valid_target_lanes
 
-    def get_lane_accel(self, lane : BaseLane, vi : int, mv : MicroVehicle, delta_time : float):
-        # compute next position and speed using Eulerian method;
 
-        position_delta, speed_delta = lane.compute_state_delta(vi)
-
-        try:
-
-            self.handle_collision(position_delta)
-
-        except Exception as e:
-
-            print(e)
-            print("Set deltas to 0, but please check traffic flow for unrealistic behavior...")
-
-            position_delta, speed_delta = 0, 0
-
-        assert position_delta >= 0, "Vehicle collision detected"
-
-        # prevent division by zero;
-
-        position_delta = max(position_delta, POSITION_DELTA_EPS)
-
-        acc_info = IDM.compute_acceleration(mv.accel_max,
-                                                mv.accel_pref,
-                                                mv.speed,
-                                                mv.target_speed,
-                                                position_delta,
-                                                speed_delta,
-                                                mv.min_space,
-                                                mv.time_pref,
-                                                delta_time)
-        acc = acc_info[0]
-
-        return acc 
+    def update_state_deltas(self):
+        
+        if self.curr_vehicle: 
+            leading_v = self.curr_vehicle[-1]
+            if leading_v.next_lane is not None and leading_v.next_lane.curr_vehicle: 
+                
+                self.head_position_delta = leading_v.next_lane.curr_vehicle[0].position - \
+                                            (leading_v.position - self.length)
+                self.head_speed_delta = leading_v.next_lane.curr_vehicle[0].speed - leading_v.speed
+            else: 
+                self.head_position_delta = DEFAULT_HEAD_POSITION_DELTA
+                self.head_speed_delta = DEFAULT_HEAD_SPEED_DELTA
+        else: 
+            self.head_position_delta = DEFAULT_HEAD_POSITION_DELTA
+            self.head_speed_delta = DEFAULT_HEAD_SPEED_DELTA
 
     def forward(self, delta_time: float):
 
@@ -399,6 +396,7 @@ class MicroLane(BaseLane):
                 print("Set deltas to 0, but please check traffic flow for unrealistic behavior...")
 
                 position_delta, speed_delta = 0, 0
+                self.curr_vehicle[vi].collided = True 
 
             assert position_delta >= 0, "Vehicle collision detected"
 
@@ -436,7 +434,7 @@ class MicroLane(BaseLane):
 
         for vi, lanes in valid_lanes.items():
             
-            if lanes and np.random.random((1)).item() < 0.005:
+            if lanes and np.random.random((1)).item() < 0.001:
                 vi = vi - num_removed 
                 target_lane = lanes[0]
 
@@ -456,6 +454,95 @@ class MicroLane(BaseLane):
 
         return vehicles_changed
 
+
+    def resolve_incoming_collisions(self, delta_time): 
+
+        if len(self.prev_lane) <= 1: 
+            return 
+
+        lanes_by_priority = sorted(self.prev_lane.values(), key=lambda x: x.priority, reverse=True)
+        priority_lane = lanes_by_priority[0]
+        merge_lane = lanes_by_priority[1]
+
+        try:
+            merge_lane_head : MicroVehicle = merge_lane.get_head_vehicle() 
+            merge_lane_head_next_pos = merge_lane.next_vehicle_position[-1]
+        except: 
+            return # no merging vehicles; simulate as usual
+
+        if merge_lane.next_vehicle_position[-1] < merge_lane.length: 
+            return # merging vehicles are not entering main flow
+
+        tail_v = self.curr_vehicle[0] if self.curr_vehicle else None 
+        tail_v_next_pos = self.next_vehicle_position[0] if tail_v else DEFAULT_HEAD_POSITION_DELTA
+
+        try: 
+            priority_lane_head : MicroVehicle = priority_lane.get_head_vehicle()
+            priority_lane_head_next_pos = priority_lane.next_vehicle_position[-1]
+        except:
+
+            # Check if there is space in this lane for merge vehicle 
+
+            if tail_v and abs(tail_v_next_pos - merge_lane_head_next_pos) <= (tail_v.length + merge_lane_head.length)*0.5 + merge_lane_head.min_space*2:
+                merge_lane.next_vehicle_position[-1] = merge_lane_head.position 
+                merge_lane.next_vehicle_speed[-1] = 0 
+
+            return #  indented intentionally; not a typo
+
+        if priority_lane_head_next_pos > priority_lane.length or (merge_lane_head_next_pos - merge_lane.length) > tail_v_next_pos: 
+            merge_lane.next_vehicle_position[-1] = merge_lane_head.position 
+            merge_lane.next_vehicle_speed[-1] = 0 
+            return 
+
+        # Construct a mini state 
+        mini_state_veh = [priority_lane_head, merge_lane_head, tail_v]
+        mini_state_pos = [priority_lane_head_next_pos - priority_lane.length, 
+                            merge_lane_head_next_pos - merge_lane.length, 
+                            tail_v_next_pos] 
+        
+        # assert mini_state_pos[1] < mini_state_pos[2], ""
+        # assert mini_state_pos[0] < mini_state_pos[1], ""
+
+        offset = mini_state_pos[0]
+        mini_state_pos = [x-offset for x in mini_state_pos]
+
+        if abs(mini_state_pos[1] - mini_state_pos[0]) < (mini_state_veh[1].length + mini_state_veh[0].length)*0.5 + merge_lane_head.min_space*2 or \
+            (tail_v is not None and abs(mini_state_pos[2] - mini_state_pos[1]) < (mini_state_veh[2].length + mini_state_veh[1].length)*0.5 + priority_lane_head.min_space*2):
+            merge_lane.next_vehicle_position[-1] = merge_lane_head.position 
+            merge_lane.next_vehicle_speed[-1] = 0 
+            return 
+
+        back_pos_delta = max(mini_state_pos[1] - mini_state_pos[0], POSITION_DELTA_EPS)
+        back_speed_delta = merge_lane.next_vehicle_speed[-1] - priority_lane.next_vehicle_speed[-1]
+
+        acc_info_last = IDM.compute_acceleration(priority_lane_head.accel_max,
+                                                        priority_lane_head.accel_pref,
+                                                        priority_lane.next_vehicle_speed[-1],
+                                                        priority_lane_head.target_speed,
+                                                        back_pos_delta,
+                                                        back_speed_delta,
+                                                        priority_lane_head.min_space,
+                                                        priority_lane_head.time_pref,
+                                                        delta_time)
+                
+
+        if acc_info_last[0] < -self.LANE_CHANGE_MAX_BRAKING_IMPOSED:
+            merge_lane.next_vehicle_position[-1] = merge_lane_head.position 
+            merge_lane.next_vehicle_speed[-1] = 0 
+            return 
+
+    @staticmethod
+    def get_highest_priority_lane(lanes : List[BaseLane]):
+        
+        result = None 
+        highest_priority = -1
+
+        for lane in lanes: 
+            if lane.priority > highest_priority:
+                result = lane 
+                highest_priority = lane.priority 
+        
+        return result
 
     def handle_collision(self, position_delta: float):
 
@@ -482,6 +569,9 @@ class MicroLane(BaseLane):
             
             position_delta = abs(lv.position - mv.position) - ((lv.length + mv.length) * 0.5)
             speed_delta = mv.speed - lv.speed
+
+            if position_delta < 0: 
+                mv.collided = True 
 
         return position_delta, speed_delta
 

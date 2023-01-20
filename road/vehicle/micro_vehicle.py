@@ -26,6 +26,8 @@ class MicroVehicle(Vehicle):
         self.target_speed = target_speed
         self.min_space = min_space
         self.time_pref = time_pref
+        self.collided = False 
+        self.next_lane = None 
 
     @staticmethod
     def default_micro_vehicle(speed_limit: float):
@@ -52,7 +54,7 @@ class MicroVehicle(Vehicle):
 
         # min space ahead;
         
-        min_space = vehicle_length * 0.3
+        min_space = vehicle_length * 0.5
 
         # preferred time to go;
         
